@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase, CarBrand, CarModel, CarModification } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 // Fallback database in case Supabase is not configured
 const fallbackDatabase: Record<string, Record<string, string[]>> = {
@@ -80,8 +80,6 @@ export default function Home() {
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [selectedModification, setSelectedModification] = useState<string>('');
   const [carDatabase, setCarDatabase] = useState<Record<string, Record<string, string[]>>>(fallbackDatabase);
-  const [brands, setBrands] = useState<CarBrand[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const [inputs, setInputs] = useState({
     // Fuel
@@ -133,8 +131,6 @@ export default function Home() {
         if (brandsError) throw brandsError;
 
         if (brandsData && brandsData.length > 0) {
-          setBrands(brandsData);
-
           // Fetch all models
           const { data: modelsData, error: modelsError } = await supabase
             .from('car_models')
@@ -170,8 +166,6 @@ export default function Home() {
         console.error('Error fetching car data from Supabase:', error);
         // Use fallback database if Supabase fails
         setCarDatabase(fallbackDatabase);
-      } finally {
-        setLoading(false);
       }
     };
 
