@@ -110,17 +110,6 @@ export default function Home() {
     fetchData();
   }, []);
 
-  // Update inputs when powertrain is selected
-  useEffect(() => {
-    if (selectedPowertrain) {
-      // Auto-populate car value from MSRP
-      setInputs(prev => ({
-        ...prev,
-        carValue: selectedPowertrain.msrp_eur.toString(),
-      }));
-    }
-  }, [selectedPowertrain]);
-
   const handleInputChange = (field: string, value: string) => {
     setInputs(prev => ({ ...prev, [field]: value }));
   };
@@ -174,7 +163,7 @@ export default function Home() {
   const yearsOwned = parseFloatSafe(inputs.yearsOwned, 1);
   const parkingMonthly = parseFloatSafe(inputs.parkingMonthly, 0);
   const tollsMonthly = parseFloatSafe(inputs.tollsMonthly, 0);
-  const carValue = selectedPowertrain ? selectedPowertrain.msrp_eur : parseFloatSafe(inputs.carValue || '0', 0);
+  const carValue = selectedPowertrain ? selectedPowertrain.msrp_eur : 0;
 
   // Get TCO parameters for selected powertrain
   const fuelType = selectedPowertrain?.fuel_type || 'petrol';
