@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase, Brand, Model, Trim, Powertrain, TcoParam } from '@/lib/supabase';
+import { supabase, Brand, Model, Trim, Powertrain } from '@/lib/supabase';
 
 interface CarData {
   brands: Brand[];
@@ -34,9 +34,6 @@ export default function Home() {
   });
 
   const selectedPowertrain = carData.powertrains.find(p => p.id === selectedPowertrainId);
-  const selectedBrand = carData.brands.find(b => b.id === selectedBrandId);
-  const selectedModel = carData.models.find(m => m.id === selectedModelId);
-  const selectedTrim = carData.trims.find(t => t.id === selectedTrimId);
 
   // Fetch all data from Supabase
   useEffect(() => {
