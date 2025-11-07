@@ -1,180 +1,170 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, Brand, Model, Trim, Powertrain, TcoParam } from '@/lib/supabase';
 
-// Fallback database in case Supabase is not configured
-const fallbackDatabase: Record<string, Record<string, string[]>> = {
-  'Volkswagen': {
-    'Golf': ['1.0 TSI', '1.5 TSI', '2.0 TDI', 'GTE', 'R'],
-    'Passat': ['1.5 TSI', '2.0 TSI', '2.0 TDI', 'GTE'],
-    'Polo': ['1.0 TSI', '1.5 TSI', '2.0 TDI'],
-    'Tiguan': ['1.5 TSI', '2.0 TSI', '2.0 TDI', 'R'],
-    'ID.3': ['Pure', 'Pro', 'Pro S'],
-    'ID.4': ['Pure', 'Pro', 'GTX'],
-  },
-  'BMW': {
-    '3 Series': ['318i', '320i', '330i', '320d', '330d', 'M3'],
-    '5 Series': ['520i', '530i', '530d', '540i', 'M5'],
-    'X3': ['xDrive20i', 'xDrive30i', 'xDrive30d', 'M40i'],
-    'X5': ['xDrive30d', 'xDrive40i', 'xDrive50i', 'M50i'],
-    'i4': ['eDrive40', 'M50'],
-    'iX3': ['eDrive'],
-  },
-  'Mercedes-Benz': {
-    'C-Class': ['C 180', 'C 200', 'C 220 d', 'C 300', 'AMG C 43'],
-    'E-Class': ['E 200', 'E 220 d', 'E 300', 'E 350 e', 'AMG E 53'],
-    'GLC': ['GLC 200', 'GLC 220 d', 'GLC 300', 'AMG GLC 43'],
-    'GLE': ['GLE 300 d', 'GLE 350', 'GLE 450', 'AMG GLE 53'],
-    'EQC': ['EQC 400'],
-    'EQS': ['EQS 450+', 'EQS 580'],
-  },
-  'Audi': {
-    'A3': ['30 TFSI', '35 TFSI', '40 TFSI', '35 TDI', 'S3'],
-    'A4': ['35 TDI', '40 TFSI', '45 TFSI', 'S4'],
-    'A6': ['40 TDI', '45 TFSI', '50 TDI', 'S6'],
-    'Q5': ['40 TDI', '45 TFSI', '50 TDI', 'SQ5'],
-    'Q7': ['45 TDI', '50 TDI', '55 TFSI', 'SQ7'],
-    'e-tron': ['50', '55', 'S'],
-  },
-  'Peugeot': {
-    '208': ['1.2 PureTech', 'e-208'],
-    '308': ['1.2 PureTech', '1.5 BlueHDi', 'e-308'],
-    '3008': ['1.2 PureTech', '1.6 Hybrid', 'PHEV'],
-    '5008': ['1.2 PureTech', '1.6 Hybrid', 'PHEV'],
-  },
-  'Renault': {
-    'Clio': ['TCe 100', 'TCe 130', 'E-Tech'],
-    'Megane': ['TCe 140', 'TCe 205', 'E-Tech'],
-    'Captur': ['TCe 140', 'E-Tech'],
-    'Zoe': ['R110', 'R135'],
-  },
-  'Ford': {
-    'Fiesta': ['1.0 EcoBoost', 'ST'],
-    'Focus': ['1.0 EcoBoost', '1.5 EcoBoost', '2.0 TDCi', 'ST'],
-    'Kuga': ['1.5 EcoBoost', '2.0 TDCi', 'PHEV'],
-    'Mustang Mach-E': ['Select', 'Premium', 'GT'],
-  },
-  'Opel': {
-    'Corsa': ['1.2', '1.4 Turbo', 'e-Corsa'],
-    'Astra': ['1.2 Turbo', '1.4 Turbo', '1.6 CDTI'],
-    'Mokka': ['1.2 Turbo', 'e-Mokka'],
-    'Grandland': ['1.2 Turbo', '1.6 Hybrid', 'PHEV'],
-  },
-  'Skoda': {
-    'Octavia': ['1.0 TSI', '1.5 TSI', '2.0 TDI', 'vRS'],
-    'Superb': ['1.5 TSI', '2.0 TSI', '2.0 TDI'],
-    'Kodiaq': ['1.5 TSI', '2.0 TSI', '2.0 TDI', 'vRS'],
-    'Enyaq': ['60', '80', 'vRS'],
-  },
-  'SEAT': {
-    'Ibiza': ['1.0 TSI', '1.5 TSI', 'FR'],
-    'Leon': ['1.0 TSI', '1.5 TSI', '2.0 TDI', 'Cupra'],
-    'Ateca': ['1.5 TSI', '2.0 TSI', 'Cupra'],
-    'Born': ['e-Boost', 'e-Boost 150', 'e-Boost 230'],
-  },
-};
+interface CarData {
+  brands: Brand[];
+  models: Model[];
+  trims: Trim[];
+  powertrains: Powertrain[];
+  tcoParams: Record<string, Record<string, number>>; // fuel_type -> param_type -> value
+}
 
 export default function Home() {
-  const [selectedBrand, setSelectedBrand] = useState<string>('');
-  const [selectedModel, setSelectedModel] = useState<string>('');
-  const [selectedModification, setSelectedModification] = useState<string>('');
-  const [carDatabase, setCarDatabase] = useState<Record<string, Record<string, string[]>>>(fallbackDatabase);
-
+  const [carData, setCarData] = useState<CarData>({
+    brands: [],
+    models: [],
+    trims: [],
+    powertrains: [],
+    tcoParams: {},
+  });
+  const [loading, setLoading] = useState(true);
+  
+  const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
+  const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
+  const [selectedTrimId, setSelectedTrimId] = useState<number | null>(null);
+  const [selectedPowertrainId, setSelectedPowertrainId] = useState<number | null>(null);
+  
   const [inputs, setInputs] = useState({
-    // Fuel
     annualKm: '15000',
-    litersPer100km: '7.5',
-    fuelPrice: '1.80',
-    
-    // Insurance
-    insuranceMonthly: '120',
-    
-    // Maintenance
-    maintenanceAnnual: '800',
-    
-    // Depreciation
-    carValue: '25000',
     yearsOwned: '5',
-    
-    // Other
-    registrationAnnual: '300',
     parkingMonthly: '60',
     tollsMonthly: '25',
   });
 
-  const handleInputChange = (field: string, value: string) => {
-    setInputs(prev => ({ ...prev, [field]: value }));
-  };
+  const selectedPowertrain = carData.powertrains.find(p => p.id === selectedPowertrainId);
+  const selectedBrand = carData.brands.find(b => b.id === selectedBrandId);
+  const selectedModel = carData.models.find(m => m.id === selectedModelId);
+  const selectedTrim = carData.trims.find(t => t.id === selectedTrimId);
 
-  const handleBrandChange = (brand: string) => {
-    setSelectedBrand(brand);
-    setSelectedModel('');
-    setSelectedModification('');
-  };
-
-  const handleModelChange = (model: string) => {
-    setSelectedModel(model);
-    setSelectedModification('');
-  };
-
-  // Fetch car data from Supabase
+  // Fetch all data from Supabase
   useEffect(() => {
-    const fetchCarData = async () => {
+    const fetchData = async () => {
       try {
+        setLoading(true);
+        
         // Fetch brands
-        const { data: brandsData, error: brandsError } = await supabase
-          .from('car_brands')
+        const { data: brands, error: brandsError } = await supabase
+          .from('brands')
           .select('*')
           .order('name');
 
         if (brandsError) throw brandsError;
 
-        if (brandsData && brandsData.length > 0) {
-          // Fetch all models
-          const { data: modelsData, error: modelsError } = await supabase
-            .from('car_models')
-            .select('*')
-            .order('name');
+        // Fetch models
+        const { data: models, error: modelsError } = await supabase
+          .from('models')
+          .select('*')
+          .order('name');
 
-          if (modelsError) throw modelsError;
+        if (modelsError) throw modelsError;
 
-          // Fetch all modifications
-          const { data: modificationsData, error: modificationsError } = await supabase
-            .from('car_modifications')
-            .select('*')
-            .order('name');
+        // Fetch trims
+        const { data: trims, error: trimsError } = await supabase
+          .from('trims')
+          .select('*')
+          .order('model_year', { ascending: false })
+          .order('name');
 
-          if (modificationsError) throw modificationsError;
+        if (trimsError) throw trimsError;
 
-          // Build the car database structure
-          const db: Record<string, Record<string, string[]>> = {};
-          
-          brandsData.forEach((brand) => {
-            db[brand.name] = {};
-            const brandModels = modelsData?.filter(m => m.brand_id === brand.id) || [];
-            
-            brandModels.forEach((model) => {
-              const modelModifications = modificationsData?.filter(m => m.model_id === model.id) || [];
-              db[brand.name][model.name] = modelModifications.map(mod => mod.name);
-            });
-          });
+        // Fetch powertrains
+        const { data: powertrains, error: powertrainsError } = await supabase
+          .from('powertrains')
+          .select('*')
+          .order('name');
 
-          setCarDatabase(db);
-        }
+        if (powertrainsError) throw powertrainsError;
+
+        // Fetch TCO parameters
+        const { data: tcoParams, error: tcoParamsError } = await supabase
+          .from('tco_params')
+          .select('*')
+          .eq('country_code', 'DE')
+          .eq('year', 2024);
+
+        if (tcoParamsError) throw tcoParamsError;
+
+        // Organize TCO params by fuel_type and param_type
+        const tcoParamsMap: Record<string, Record<string, number>> = {};
+        tcoParams?.forEach(param => {
+          const fuelType = param.fuel_type || 'default';
+          if (!tcoParamsMap[fuelType]) {
+            tcoParamsMap[fuelType] = {};
+          }
+          tcoParamsMap[fuelType][param.param_type] = param.value_eur;
+        });
+
+        setCarData({
+          brands: brands || [],
+          models: models || [],
+          trims: trims || [],
+          powertrains: powertrains || [],
+          tcoParams: tcoParamsMap,
+        });
       } catch (error) {
-        console.error('Error fetching car data from Supabase:', error);
-        // Use fallback database if Supabase fails
-        setCarDatabase(fallbackDatabase);
+        console.error('Error fetching data from Supabase:', error);
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchCarData();
+    fetchData();
   }, []);
 
-  const availableModels = selectedBrand ? Object.keys(carDatabase[selectedBrand] || {}) : [];
-  const availableModifications = selectedBrand && selectedModel 
-    ? (carDatabase[selectedBrand]?.[selectedModel] || []) 
+  // Update inputs when powertrain is selected
+  useEffect(() => {
+    if (selectedPowertrain) {
+      // Auto-populate car value from MSRP
+      setInputs(prev => ({
+        ...prev,
+        carValue: selectedPowertrain.msrp_eur.toString(),
+      }));
+    }
+  }, [selectedPowertrain]);
+
+  const handleInputChange = (field: string, value: string) => {
+    setInputs(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleBrandChange = (brandId: string) => {
+    const id = brandId ? parseInt(brandId) : null;
+    setSelectedBrandId(id);
+    setSelectedModelId(null);
+    setSelectedTrimId(null);
+    setSelectedPowertrainId(null);
+  };
+
+  const handleModelChange = (modelId: string) => {
+    const id = modelId ? parseInt(modelId) : null;
+    setSelectedModelId(id);
+    setSelectedTrimId(null);
+    setSelectedPowertrainId(null);
+  };
+
+  const handleTrimChange = (trimId: string) => {
+    const id = trimId ? parseInt(trimId) : null;
+    setSelectedTrimId(id);
+    setSelectedPowertrainId(null);
+  };
+
+  const handlePowertrainChange = (powertrainId: string) => {
+    const id = powertrainId ? parseInt(powertrainId) : null;
+    setSelectedPowertrainId(id);
+  };
+
+  // Filter available options
+  const availableModels = selectedBrandId
+    ? carData.models.filter(m => m.brand_id === selectedBrandId)
+    : [];
+
+  const availableTrims = selectedModelId
+    ? carData.trims.filter(t => t.model_id === selectedModelId)
+    : [];
+
+  const availablePowertrains = selectedTrimId
+    ? carData.powertrains.filter(p => p.trim_id === selectedTrimId)
     : [];
 
   // Calculations
@@ -184,34 +174,69 @@ export default function Home() {
   };
 
   const annualKm = parseFloatSafe(inputs.annualKm, 0);
-  const litersPer100km = parseFloatSafe(inputs.litersPer100km, 1);
-  const fuelPrice = parseFloatSafe(inputs.fuelPrice, 0);
-  const insuranceMonthly = parseFloatSafe(inputs.insuranceMonthly, 0);
-  const maintenanceAnnual = parseFloatSafe(inputs.maintenanceAnnual, 0);
-  const carValue = parseFloatSafe(inputs.carValue, 0);
   const yearsOwned = parseFloatSafe(inputs.yearsOwned, 1);
-  const registrationAnnual = parseFloatSafe(inputs.registrationAnnual, 0);
   const parkingMonthly = parseFloatSafe(inputs.parkingMonthly, 0);
   const tollsMonthly = parseFloatSafe(inputs.tollsMonthly, 0);
+  const carValue = selectedPowertrain ? selectedPowertrain.msrp_eur : parseFloatSafe(inputs.carValue || '0', 0);
 
-  // Fuel calculation: (annualKm / 100) * litersPer100km * fuelPricePerLiter
-  const fuelAnnual = (annualKm / 100) * litersPer100km * fuelPrice;
-  const insuranceAnnual = insuranceMonthly * 12;
-  const depreciationAnnual = carValue / yearsOwned;
+  // Get TCO parameters for selected powertrain
+  const fuelType = selectedPowertrain?.fuel_type || 'petrol';
+  const fuelParams = carData.tcoParams[fuelType] || {};
+  const defaultParams = carData.tcoParams['petrol'] || {};
+
+  // Fuel/Energy costs
+  let fuelAnnual = 0;
+  if (selectedPowertrain) {
+    if (selectedPowertrain.fuel_type === 'bev') {
+      // EV: use kWh/100km and electricity price
+      const kwhPer100km = selectedPowertrain.combined_kwh_per_100km || 0;
+      const electricityPrice = fuelParams['electricity_price'] || defaultParams['electricity_price'] || 0.35;
+      fuelAnnual = (annualKm / 100) * kwhPer100km * electricityPrice;
+    } else if (selectedPowertrain.fuel_type === 'phev') {
+      // PHEV: assume 50% electric, 50% petrol
+      const kwhPer100km = selectedPowertrain.combined_kwh_per_100km || 0;
+      const lPer100km = selectedPowertrain.combined_l_per_100km || 0;
+      const electricityPrice = fuelParams['electricity_price'] || defaultParams['electricity_price'] || 0.35;
+      const fuelPrice = fuelParams['fuel_price'] || defaultParams['fuel_price'] || 1.85;
+      const electricCost = (annualKm / 100) * kwhPer100km * electricityPrice * 0.5;
+      const petrolCost = (annualKm / 100) * lPer100km * fuelPrice * 0.5;
+      fuelAnnual = electricCost + petrolCost;
+    } else {
+      // ICE/HEV: use L/100km and fuel price
+      const lPer100km = selectedPowertrain.combined_l_per_100km || 0;
+      const fuelPrice = fuelParams['fuel_price'] || defaultParams['fuel_price'] || 1.85;
+      fuelAnnual = (annualKm / 100) * lPer100km * fuelPrice;
+    }
+  }
+
+  // Insurance
+  const insuranceAnnual = fuelParams['insurance_annual'] || defaultParams['insurance_annual'] || 800;
+
+  // Maintenance
+  const maintenanceAnnual = fuelParams['maintenance_annual'] || defaultParams['maintenance_annual'] || 600;
+
+  // Tax/Registration
+  const taxAnnual = fuelParams['tax_annual'] || defaultParams['tax_annual'] || 180;
+
+  // Depreciation (using residual value percentage)
+  const residualValuePct = fuelParams['residual_value_pct_3y'] || 55;
+  const depreciationAnnual = carValue > 0 ? (carValue * (1 - residualValuePct / 100)) / yearsOwned : 0;
+
+  // Other costs
   const parkingAnnual = parkingMonthly * 12;
   const tollsAnnual = tollsMonthly * 12;
 
   const totalAnnual = fuelAnnual + insuranceAnnual + maintenanceAnnual + 
-                      depreciationAnnual + registrationAnnual + parkingAnnual + tollsAnnual;
+                      depreciationAnnual + taxAnnual + parkingAnnual + tollsAnnual;
   const totalMonthly = totalAnnual / 12;
   const costPerKm = annualKm > 0 ? totalAnnual / annualKm : 0;
 
   const categories = [
-    { name: 'Fuel', value: fuelAnnual, color: 'bg-blue-500' },
+    { name: 'Fuel/Energy', value: fuelAnnual, color: 'bg-blue-500' },
     { name: 'Insurance', value: insuranceAnnual, color: 'bg-green-500' },
     { name: 'Depreciation', value: depreciationAnnual, color: 'bg-purple-500' },
     { name: 'Maintenance', value: maintenanceAnnual, color: 'bg-orange-500' },
-    { name: 'Registration', value: registrationAnnual, color: 'bg-pink-500' },
+    { name: 'Tax/Registration', value: taxAnnual, color: 'bg-pink-500' },
     { name: 'Parking', value: parkingAnnual, color: 'bg-yellow-500' },
     { name: 'Tolls', value: tollsAnnual, color: 'bg-red-500' },
   ];
@@ -225,16 +250,27 @@ export default function Home() {
     }).format(value);
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-slate-600 dark:text-slate-400">Loading calculator...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       <div className="container mx-auto px-4 py-8 md:py-12 max-w-6xl">
         {/* Header */}
         <div className="text-center mb-8 md:mb-12">
           <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-3">
-            Car Ownership Cost Calculator
+            Vehicle TCO Calculator
           </h1>
           <p className="text-slate-600 dark:text-slate-400 text-lg">
-            Estimate your annual and monthly car ownership expenses
+            Calculate total cost of ownership using real vehicle data
           </p>
         </div>
 
@@ -245,22 +281,22 @@ export default function Home() {
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 border border-slate-200 dark:border-slate-700">
               <h2 className="text-xl font-semibold mb-4 text-slate-800 dark:text-slate-200 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-                Car Selection
+                Vehicle Selection
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
                     Brand
                   </label>
                   <select
-                    value={selectedBrand}
+                    value={selectedBrandId || ''}
                     onChange={(e) => handleBrandChange(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all appearance-none cursor-pointer"
                   >
                     <option value="">Select Brand</option>
-                    {Object.keys(carDatabase).map((brand) => (
-                      <option key={brand} value={brand}>
-                        {brand}
+                    {carData.brands.map((brand) => (
+                      <option key={brand.id} value={brand.id}>
+                        {brand.name}
                       </option>
                     ))}
                   </select>
@@ -270,54 +306,93 @@ export default function Home() {
                     Model
                   </label>
                   <select
-                    value={selectedModel}
+                    value={selectedModelId || ''}
                     onChange={(e) => handleModelChange(e.target.value)}
-                    disabled={!selectedBrand}
+                    disabled={!selectedBrandId}
                     className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="">Select Model</option>
                     {availableModels.map((model) => (
-                      <option key={model} value={model}>
-                        {model}
+                      <option key={model.id} value={model.id}>
+                        {model.name}
                       </option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                    Modification
+                    Trim
                   </label>
                   <select
-                    value={selectedModification}
-                    onChange={(e) => setSelectedModification(e.target.value)}
-                    disabled={!selectedModel}
+                    value={selectedTrimId || ''}
+                    onChange={(e) => handleTrimChange(e.target.value)}
+                    disabled={!selectedModelId}
                     className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <option value="">Select Modification</option>
-                    {availableModifications.map((mod) => (
-                      <option key={mod} value={mod}>
-                        {mod}
+                    <option value="">Select Trim</option>
+                    {availableTrims.map((trim) => (
+                      <option key={trim.id} value={trim.id}>
+                        {trim.name} ({trim.model_year})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                    Powertrain
+                  </label>
+                  <select
+                    value={selectedPowertrainId || ''}
+                    onChange={(e) => handlePowertrainChange(e.target.value)}
+                    disabled={!selectedTrimId}
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="">Select Powertrain</option>
+                    {availablePowertrains.map((powertrain) => (
+                      <option key={powertrain.id} value={powertrain.id}>
+                        {powertrain.name}
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
-              {selectedBrand && selectedModel && selectedModification && (
-                <div className="mt-4 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
-                  <p className="text-sm text-indigo-800 dark:text-indigo-200">
-                    <span className="font-semibold">Selected:</span> {selectedBrand} {selectedModel} {selectedModification}
-                  </p>
+              {selectedPowertrain && (
+                <div className="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                      <span className="text-indigo-600 dark:text-indigo-400 font-medium">MSRP:</span>
+                      <span className="ml-2 text-indigo-800 dark:text-indigo-200">{formatCurrency(selectedPowertrain.msrp_eur)}</span>
+                    </div>
+                    <div>
+                      <span className="text-indigo-600 dark:text-indigo-400 font-medium">Power:</span>
+                      <span className="ml-2 text-indigo-800 dark:text-indigo-200">{selectedPowertrain.power_hp} HP</span>
+                    </div>
+                    <div>
+                      <span className="text-indigo-600 dark:text-indigo-400 font-medium">Fuel Type:</span>
+                      <span className="ml-2 text-indigo-800 dark:text-indigo-200 capitalize">{selectedPowertrain.fuel_type}</span>
+                    </div>
+                    <div>
+                      <span className="text-indigo-600 dark:text-indigo-400 font-medium">Consumption:</span>
+                      <span className="ml-2 text-indigo-800 dark:text-indigo-200">
+                        {selectedPowertrain.combined_l_per_100km 
+                          ? `${selectedPowertrain.combined_l_per_100km} L/100km`
+                          : selectedPowertrain.combined_kwh_per_100km 
+                          ? `${selectedPowertrain.combined_kwh_per_100km} kWh/100km`
+                          : 'N/A'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Fuel Costs */}
+            {/* Usage Parameters */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 border border-slate-200 dark:border-slate-700">
               <h2 className="text-xl font-semibold mb-4 text-slate-800 dark:text-slate-200 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                Fuel Costs
+                Usage Parameters
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
                     Annual Kilometers
@@ -332,96 +407,6 @@ export default function Home() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                    L/100km
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={inputs.litersPer100km}
-                    onChange={(e) => handleInputChange('litersPer100km', e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="7.5"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                    Fuel Price (€/liter)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={inputs.fuelPrice}
-                    onChange={(e) => handleInputChange('fuelPrice', e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="1.80"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Insurance */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 border border-slate-200 dark:border-slate-700">
-              <h2 className="text-xl font-semibold mb-4 text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                Insurance
-              </h2>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                  Monthly Premium (€)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={inputs.insuranceMonthly}
-                  onChange={(e) => handleInputChange('insuranceMonthly', e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                  placeholder="120"
-                />
-              </div>
-            </div>
-
-            {/* Maintenance */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 border border-slate-200 dark:border-slate-700">
-              <h2 className="text-xl font-semibold mb-4 text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                Maintenance & Repairs
-              </h2>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                  Annual Maintenance (€)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={inputs.maintenanceAnnual}
-                  onChange={(e) => handleInputChange('maintenanceAnnual', e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
-                  placeholder="800"
-                />
-              </div>
-            </div>
-
-            {/* Depreciation */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 border border-slate-200 dark:border-slate-700">
-              <h2 className="text-xl font-semibold mb-4 text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-                Depreciation
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                    Car Value (€)
-                  </label>
-                  <input
-                    type="number"
-                    value={inputs.carValue}
-                    onChange={(e) => handleInputChange('carValue', e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    placeholder="25000"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
                     Years Owned
                   </label>
                   <input
@@ -429,31 +414,8 @@ export default function Home() {
                     step="0.1"
                     value={inputs.yearsOwned}
                     onChange={(e) => handleInputChange('yearsOwned', e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="5"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Other Costs */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 border border-slate-200 dark:border-slate-700">
-              <h2 className="text-xl font-semibold mb-4 text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-pink-500"></span>
-                Other Costs
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                    Registration/Annual (€)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={inputs.registrationAnnual}
-                    onChange={(e) => handleInputChange('registrationAnnual', e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all"
-                    placeholder="300"
                   />
                 </div>
                 <div>
@@ -465,7 +427,7 @@ export default function Home() {
                     step="0.01"
                     value={inputs.parkingMonthly}
                     onChange={(e) => handleInputChange('parkingMonthly', e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="60"
                   />
                 </div>
@@ -478,11 +440,18 @@ export default function Home() {
                     step="0.01"
                     value={inputs.tollsMonthly}
                     onChange={(e) => handleInputChange('tollsMonthly', e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     placeholder="25"
                   />
                 </div>
               </div>
+              {selectedPowertrain && (
+                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                    <span className="font-semibold">Note:</span> Fuel consumption, insurance, maintenance, and tax rates are automatically calculated based on the selected powertrain and TCO parameters from the database.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
